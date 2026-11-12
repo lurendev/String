@@ -454,21 +454,28 @@ class StringEngine:
                 if line.strip()
             ]
             total = len(lines)
-            index = progress.get(path.name, 0)
-            if not isinstance(index, int):
-                index = 0
-            index = min(max(index, 0), total) if total else 0
-            percent = f"{index / total * 100:.1f}%" if total else "—"
-            recent = lines[index - 1] if index else "—"
+            read_count = progress.get(path.name, 0)
+            if not isinstance(read_count, int) or read_count < 0:
+                read_count = 0
+            if total:
+                round_no = read_count // total + 1   # 当前读到第几遍
+                in_round = read_count % total        # 本遍已读句数
+                percent = f"{in_round / total * 100:.1f}%"
+                recent = lines[in_round - 1] if in_round else (
+                    lines[-1] if round_no > 1 else "—"
+                )
+            else:
+                round_no, in_round, percent, recent = 0, 0, "—", "—"
             rows.append(
-                f"| {path.stem} | {index} | {total} | {percent} | {recent[:25]} |"
+                f"| {path.stem} | 第 {round_no} 遍 | {in_round} | {total} "
+                f"| {percent} | {recent[:25]} |"
             )
         report = (
             "# 阅读进度\n\n"
             "> 由程序自动生成，请勿手动编辑。\n"
             f"> 最后更新：{datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "| 书名 | 已读 | 总句数 | 进度 | 最近读到 |\n"
-            "| :--- | ---: | ---: | ---: | :--- |\n"
+            "| 书名 | 遍数 | 本遍已读 | 总句数 | 进度 | 最近读到 |\n"
+            "| :--- | ---: | ---: | ---: | ---: | :--- |\n"
             + "\n".join(rows)
             + "\n"
         )

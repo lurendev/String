@@ -1,13 +1,13 @@
 {
-  "tick": 394,
-  "pain_level": 0.0,
+  "tick": 459,
+  "pain_level": 0.35,
   "energy": 100,
-  "money": 1235,
+  "money": 945,
   "health": 100,
   "pending_pain": [],
   "consecutive_reads": 0,
   "consecutive_creator": 0,
-  "last_action": 1,
+  "last_action": 2,
   "consecutive_action": 1,
-  "zero_pain_ticks": 4
+  "zero_pain_ticks": 0
 }

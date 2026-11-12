@@ -326,7 +326,8 @@ Q[s, a] += alpha * (reward + gamma * max(Q[s']) - Q[s, a])
 
 - 每次成功 READ 后，当前书籍的指针写入 `data/reading_progress.json`（键为书名，值为已读句数）
 - 启动时按书名恢复 `env.current_line`，重启不再从头开始；主循环会打印「阅读进度已恢复」
-- 同时生成 `data/阅读进度.md`，列出 `book/*_短句版.txt` 每本书的已读 / 总句数 / 百分比 / 最近一句
+- 同时生成 `data/阅读进度.md`，列出 `book/*_短句版.txt` 每本书「第几遍 / 本遍已读 / 总句数 / 进度 / 最近一句」
+- 一本书读完会自动进入下一遍：`已读总数 // 总句数 + 1` 即当前遍数，本遍进度按余数计算
 - 新增书籍时，先用 `book_cleaner.py` 生成 `XXX_短句版.txt`，报表会自动收录，未读的书显示 `0.0%`
 
 ### 3.13 断点续命（`data/save.json`）
@@ -455,7 +456,7 @@ class StringEngine:
 | `data/memory.json` | 每次记忆写入/淘汰后覆盖写 | `{"state": 6, "memories": [...], "scores": [...]}` |
 | `data/reading_progress.json` | 每次成功阅读后覆盖写 | `{"西西弗斯_短句版.txt": 11}` |
 | `data/save.json` | 每个存活 TICK 后覆盖写 | 生理状态 + 延迟痛苦 + 行为计数 |
-| `data/阅读进度.md` | 每次成功阅读后重新生成 | 每本书的已读句数、百分比与最近一句 |
+| `data/阅读进度.md` | 每次成功阅读后重新生成 | 每本书的遍数、本遍已读、百分比与最近一句 |
 | `logs/diary.txt` | 每回合追加 | `[时间] TICK 0001 \| STATE 3->10 \| WORK \| 独白：...` |
 | `data/archives/forgotten_memories.txt` | 记忆溢出时追加 | `[遗忘于 时间] 独白` |
 | `data/archives/death_archive.txt` | 自毁时追加 | 见 3.9 |
