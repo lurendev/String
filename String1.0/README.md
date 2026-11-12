@@ -58,9 +58,9 @@ C:\Users\sumo\.conda\envs\shuxue\python.exe -c "from src.core.engine import Stri
 同时生成或追加：
 
 - `data/q_table.npy`：Q 表快照，重启后继承前世记忆
-- `logs/diary.txt`：每回合的时间戳、状态迁移、动作、独白
-- `data/archives/forgotten_memories.txt`：被遗忘的记忆
-- `data/archives/death_archive.txt`：自毁时的死亡档案
+- `logs/diary/YYYY-MM-DD.txt`：当天的每回合时间戳、状态迁移、动作、独白（按天分文件）
+- `data/archives/forgotten_memories/YYYY-MM-DD.txt`：当天被遗忘的记忆
+- `data/archives/death_archive/YYYY-MM-DD.txt`：当天发生的死亡档案
 
 ---
 
@@ -76,14 +76,17 @@ String1.0/
 │   ├── save.json                       # 运行时存档：生理状态与行为计数（自动创建）
 │   ├── 阅读进度.md                     # 人类可读的阅读进度报表（自动生成）
 │   └── archives/
-│       ├── forgotten_memories.txt      # 遗忘的碎片（首次遗忘时自动创建）
-│       └── death_archive.txt           # 死亡档案（首次自毁时自动创建）
+│       ├── forgotten_memories/         # 遗忘档案馆，按天分文件
+│       │   └── 2026-11-13.txt
+│       └── death_archive/              # 死亡档案，按天分文件
+│           └── 2026-11-13.txt
 ├── book/
 │   ├── 西西弗斯神话.txt                # 原始全文（仅供 book_cleaner.py 处理）
 │   └── 西西弗斯_短句版.txt             # READ 逐句阅读的文本（由清洗脚本生成，读完循环）
 ├── book_cleaner.py                     # 把全文切成 15 字以上的短句语料
 ├── logs/
-│   └── diary.txt                       # 生命轨迹（追加写）
+│   └── diary/                          # 生命轨迹，按天一个文件
+│       └── 2026-11-13.txt
 ├── src/
 │   ├── agents/
 │   │   ├── actions.py                  # 10 个动作的 IntEnum 定义
@@ -213,7 +216,7 @@ Q[s, a] += alpha * (reward + gamma * max(Q[s']) - Q[s, a])
 8. `brain.learn(...)` 更新 Q 表，并写回 `data/q_table.npy`
 9. 按动作选种子词生成独白；READ 时用刚读到的书摘作种子（书籍专用马尔可夫链）并检索历史记忆，命中则追加「（我想起了以前：...）」
 10. 写入记忆队列（溢出先降权再淘汰）并同步 `memory.json`
-11. 控制台打印 + 追加 `logs/diary.txt`（READ 时另记「今天读到了」并更新阅读进度）
+11. 控制台打印 + 追加当日日记（READ 时另记「今天读到了」并更新阅读进度）
 12. 存活则覆盖写 `data/save.json`；若已死亡（自毁 / 健康耗尽 / 债务压垮），清除存档、写死亡档案并抛出 `StringDeath`
 
 ### 3.7 语言生成（无大模型）
@@ -241,7 +244,7 @@ Q[s, a] += alpha * (reward + gamma * max(Q[s']) - Q[s, a])
 
 - 引擎内存中维护 `memory_list`，上限 `MEMORY_LIMIT = 100` 条独白，单条超过 `MEMORY_MAX_CHARS = 30` 字会被截断后再写入（`memory.json` 同步）
 - 每条记忆带一个权重 `score`（新记忆 1.0）。满 100 条时先对所有 score 乘以 `MEMORY_SCORE_DECAY = 0.95` 降权，再淘汰权重最低的一条（同分取最老），不会无差别丢弃；被联想命中的记忆 `+0.5` 权重（上限 5.0），越常被想起越难遗忘
-- 淘汰的记忆追加到 `data/archives/forgotten_memories.txt`（目录与文件自动创建），同时在终端打印 `[遗忘] 记忆已满，1 条旧记忆已移入遗忘档案馆。`
+- 淘汰的记忆追加到 `data/archives/forgotten_memories/当天日期.txt`（目录与文件自动创建），同时在终端打印 `[遗忘] 记忆已满，1 条旧记忆已移入遗忘档案馆。`
 - 归档格式（痛苦值取遗忘发生时的值）：
 
 ```text
@@ -286,7 +289,7 @@ Q[s, a] += alpha * (reward + gamma * max(Q[s']) - Q[s, a])
 触发后：
 
 1. 环境置 `is_dead = True` 并记录 `death_cause`（`self_destruct` / `health`）
-2. 引擎把**死亡前**的状态、原始数值、死因和本回合独白（作为遗言）写入 `data/archives/death_archive.txt`
+2. 引擎把**死亡前**的状态、原始数值、死因和本回合独白（作为遗言）写入 `data/archives/death_archive/当天日期.txt`
 3. 抛出 `StringDeath`，`run_loop()` 捕获后干净退出
 
 档案格式：
@@ -457,11 +460,13 @@ class StringEngine:
 | `data/reading_progress.json` | 每次成功阅读后覆盖写 | `{"西西弗斯_短句版.txt": 11}` |
 | `data/save.json` | 每个存活 TICK 后覆盖写 | 生理状态 + 延迟痛苦 + 行为计数 |
 | `data/阅读进度.md` | 每次成功阅读后重新生成 | 每本书的遍数、本遍已读、百分比与最近一句 |
-| `logs/diary.txt` | 每回合追加 | `[时间] TICK 0001 \| STATE 3->10 \| WORK \| 独白：...` |
-| `data/archives/forgotten_memories.txt` | 记忆溢出时追加 | `[遗忘于 时间] 独白` |
-| `data/archives/death_archive.txt` | 自毁时追加 | 见 3.9 |
+| `logs/diary/YYYY-MM-DD.txt` | 每回合追加 | `[时间] TICK 0001 \| STATE 3->10 \| WORK \| 独白：...` |
+| `data/archives/forgotten_memories/YYYY-MM-DD.txt` | 记忆溢出时追加 | `[遗忘于 时间] 当时的痛苦值：… 它遗忘了这句话：“…”` |
+| `data/archives/death_archive/YYYY-MM-DD.txt` | 死亡时追加 | 见 3.9 |
 
-所有文件均使用 UTF-8 编码，目录不存在时自动创建。
+所有文件均使用 UTF-8 编码，目录不存在时自动创建。日志类文件按自然日分文件，跨零点后自动写入新一天的文件，无需重启。
+
+早期版本留下的单文件 `logs/diary.txt`、`data/archives/forgotten_memories.txt`、`data/archives/death_archive.txt` 仍保留在仓库中作为历史记录，程序不再写入。
 
 ---
 

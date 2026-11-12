@@ -566,7 +566,14 @@ class StringEngine:
         )
 
     @staticmethod
+    @staticmethod
+    def _dated(path: Path) -> Path:
+        """把基础路径映射为按天分文件：<目录>/<文件名>/<YYYY-MM-DD><后缀>。"""
+        return path.parent / path.stem / f"{datetime.now():%Y-%m-%d}{path.suffix}"
+
+    @staticmethod
     def _append(path: Path, text: str) -> None:
+        path = StringEngine._dated(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
             f.write(text)
@@ -574,7 +581,7 @@ class StringEngine:
     def _append_diary(
         self, state: int, action: Action, next_state: int, monologue: str
     ) -> None:
-        """把本回合的时间戳、状态、动作、独白追加进 logs/diary.txt。"""
+        """把本回合的时间戳、状态、动作、独白追加进当日日记文件。"""
         self._append(
             DIARY_PATH,
             f"[{datetime.now():%Y-%m-%d %H:%M:%S}] TICK {self.env.tick:04d} | "
