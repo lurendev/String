@@ -1,12 +1,12 @@
 {
-  "tick": 1677,
-  "pain_level": 0.65,
-  "energy": 80,
-  "money": 24,
+  "tick": 1679,
+  "pain_level": 0.7,
+  "energy": 45,
+  "money": 69,
   "health": 80,
   "pending_pain": [],
   "consecutive_reads": 0,
-  "last_action": 2,
+  "last_action": null,
   "consecutive_action": 1,
   "zero_pain_ticks": 0
 }
