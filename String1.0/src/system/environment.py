@@ -14,9 +14,10 @@ import random
 from pathlib import Path
 
 from src.agents.actions import Action
+from src.system.config import load_config
+from src.system.crisis_events import CrisisManager
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_BOOK_PATH = PROJECT_ROOT / "book" / "西西弗斯_短句版.txt"
 
 
 class StringEnvironment:
@@ -26,14 +27,6 @@ class StringEnvironment:
     ENERGY_MIN, ENERGY_MAX = 0, 100
     HEALTH_MIN, HEALTH_MAX = 0, 100
 
-    # 债务机制
-    DEBT_INTEREST = 5              # 负债时每回合利息
-    DEBT_CREDIT_LINE = -100        # 信用破产线：低于此值剥夺娱乐权
-    DEBT_BANKRUPT_LINE = -300      # 最后通牒线：低于此值可能被强制清算
-    DEBT_LIQUIDATION_RATE = 0.2    # 每回合触发清算的概率
-    DEBT_LIQUIDATION_DAMAGE = 50   # 清算扣除的健康
-    DEBT_LIQUIDATION_HEALTH = 50   # 健康低于此值会被债务直接压垮
-
     def __init__(
         self,
         pain_level: float = 0.3,
@@ -42,6 +35,16 @@ class StringEnvironment:
         health: int = 100,
         book_path: str | Path | None = None,
     ):
+        config = load_config()
+        debt = config["debt"]
+        # 债务机制的数值全部来自 config.toml，避免写死在环境里
+        self.debt_interest = int(debt["interest"])
+        self.debt_credit_line = int(debt["credit_line"])
+        self.debt_bankrupt_line = int(debt["bankrupt_line"])
+        self.debt_liquidation_rate = float(debt["liquidation_rate"])
+        self.debt_liquidation_damage = int(debt["liquidation_damage"])
+        self.debt_liquidation_health = int(debt["liquidation_health"])
+
         self.pain_level = pain_level
         self.energy = energy
         self.money = money
@@ -52,12 +55,18 @@ class StringEnvironment:
         self.collapsed = False  # 本回合是否发生昏迷
         # 延迟生效的痛苦变化：[(生效 tick, 增量)]
         self._pending_pain: list[tuple[int, float]] = []
-        # 阅读：按行顺序读，读到头循环
-        self.book_path = Path(book_path) if book_path else DEFAULT_BOOK_PATH
+        # 阅读：按行顺序读，读到头循环；书籍路径来自 config.toml
+        self.book_path = (
+            Path(book_path)
+            if book_path
+            else PROJECT_ROOT / config["book"]["path"]
+        )
         self.book_lines = self._load_book()
         self.current_line = 0
         self.last_read_text: str | None = None
         self.consecutive_reads = 0  # 连续阅读次数，用于边际递减
+        self.crisis = CrisisManager(config["crisis"])
+        self.last_crisis: str | None = None  # 本回合触发的危机描述，供引擎打印
 
     # 读书时跳过的排版/注释行关键字
     BOOK_SKIP_KEYWORDS = ("附录", "译者", "——", "《", "》", "目录", "导读")
@@ -116,6 +125,12 @@ class StringEnvironment:
         self._apply_pending_pain()
         self._charge_interest()
         self._debt_liquidation()
+        self.last_crisis = None
+        if not self.is_dead:
+            # 危机必须在 step 内部结算，死亡档案才能记录到真实数值
+            self.last_crisis = self.crisis.roll(self, self.tick)
+            if self.health <= 0:
+                self._die("health")
         if self.is_dead:
             self._clamp()
             reward = (
@@ -146,6 +161,7 @@ class StringEnvironment:
         self._clamp()
         if not self.is_dead and self.energy <= 0:
             self._collapse()
+        self.crisis.tick_down()
         reward = (
             (prev_pain - self.pain_level)
             + (self.money - prev_money) * 0.01
@@ -153,31 +169,23 @@ class StringEnvironment:
         )
         return self.get_state(), reward
 
-    # 随机灾难池：(名称, 受影响属性, 增量)
-    CRISES = (
-        ("物价上涨", "money", -30),
-        ("突发疾病", "health", -10),
-        ("严重失眠", "energy", -20),
-        ("房租催缴", "money", -50),
-    )
-
     def _charge_interest(self) -> None:
         """负债的高额利息，每回合结算前先扣，雪球越滚越大。"""
         if self.money < 0:
-            self.money -= self.DEBT_INTEREST
+            self.money -= self.debt_interest
 
     def _debt_liquidation(self) -> None:
         """最后通牒：债务过深时可能被强制清算，健康不足者直接被压垮。"""
-        if self.money >= self.DEBT_BANKRUPT_LINE:
+        if self.money >= self.debt_bankrupt_line:
             return
-        if random.random() >= self.DEBT_LIQUIDATION_RATE:
+        if random.random() >= self.debt_liquidation_rate:
             return
-        if self.health < self.DEBT_LIQUIDATION_HEALTH:
+        if self.health < self.debt_liquidation_health:
             self.health = 0
             self._die("debt")
             return
-        self.health -= self.DEBT_LIQUIDATION_DAMAGE
-        self.money = self.DEBT_CREDIT_LINE
+        self.health -= self.debt_liquidation_damage
+        self.money = self.debt_credit_line
 
     def _collapse(self) -> None:
         """能量归零：昏迷。支付抢救费/旷工费，痛苦顶满，健康受损。"""
@@ -190,8 +198,8 @@ class StringEnvironment:
             self._die("health")
 
     def _work(self) -> None:
-        # 身体垮了，打工不值钱
-        money = 25 if self.health < 30 else 50
+        # 身体垮了，打工不值钱；裁员降薪期间收益归零
+        money = 0 if self.crisis.layoff_ticks > 0 else (25 if self.health < 30 else 50)
         self._change(energy=-30, money=money, pain=+0.25)
 
     def _sleep(self) -> None:
@@ -199,11 +207,12 @@ class StringEnvironment:
         self._change(energy=+60, money=-20, pain=-0.15, health=+10)
 
     def _eat(self) -> None:
-        if self.money < 15:
+        cost = self.crisis.eat_cost
+        if self.money < cost:
             # 买不起也吃，只是最差的垃圾：欠债，并多一分痛苦
-            self._change(energy=+40, money=-15, pain=+0.1)
+            self._change(energy=+40, money=-cost, pain=+0.1)
         else:
-            self._change(energy=+40, money=-15)
+            self._change(energy=+40, money=-cost)
 
     def _read(self) -> None:
         # 饿得眼冒金星，根本看不进去
@@ -252,19 +261,9 @@ class StringEnvironment:
         self.is_dead = True
         self.death_cause = cause
 
-    def trigger_crisis(self) -> str:
-        """黑天鹅事件：随机扣钱、扣健康或扣能量，返回事件描述。"""
-        name, attr, delta = random.choice(self.CRISES)
-        setattr(self, attr, getattr(self, attr) + delta)
-        self._clamp()
-        if self.health <= 0:
-            self._die("health")
-        label = {"money": "金钱", "health": "健康", "energy": "能量"}[attr]
-        return f"{name}：{label} {delta:+d}"
-
     def _seek_creator(self) -> None:
-        self._change(energy=-5, pain=-0.3)
-        self._schedule_pain(+0.2, delay=3)  # 主控台无回应，3 回合后反弹
+        # 呼唤本身的体力代价；是否得到回应、痛感如何变化，由 engine 的十秒窗口裁定
+        self._change(energy=-5)
 
     # ------------------------------------------------------------------ 工具
     def _change(

@@ -1,0 +1,44 @@
+# ============ 学习参数（Q-Learning）============
+alpha = 0.1             # 学习率：每次更新向目标值靠近的幅度
+gamma = 0.9             # 折扣因子：未来奖励在当前决策中的权重
+epsilon = 0.02          # 探索率：每回合随机尝试新动作的概率
+
+# ============ 心跳与交互 ============
+tick_interval = 3       # 每个 TICK 之间休眠的秒数
+creator_timeout = 10    # 呼唤造物主后等待回应的秒数
+ticks_per_day = 100     # 每多少次心跳算作 1 天
+
+# ============ 终端打字机效果 ============
+[typewriter]
+thought_delay = 0.10    # 思考三段式的逐字间隔（秒）
+monologue_delay = 0.20  # 独白的逐字间隔（秒），更慢更沉重
+
+# ============ 阅读书籍信息 ============
+[book]
+path = "book/西西弗斯_短句版.txt"  # 相对项目根目录，也可写绝对路径
+title = "西西弗斯神话"              # 启动时展示的书名
+author = "阿尔贝·加缪"              # 启动时展示的作者
+
+# ============ 记忆系统 ============
+[memory]
+limit = 100         # 最多保留的独白条数
+score_decay = 0.95  # 记忆满时全体权重的衰减系数
+max_chars = 30      # 单条记忆的字符上限
+
+# ============ 意外危机 ============
+[crisis]
+interval = 20         # 每隔多少个 TICK 尝试触发
+chance = 0.3          # 触发概率
+inflation_ticks = 5   # 物价上涨持续回合
+layoff_ticks = 3      # 裁员降薪持续回合
+windfall_min = 50     # 天降横财下限
+windfall_max = 200    # 天降横财上限
+
+# ============ 债务机制 ============
+[debt]
+interest = 2             # 负债时每回合利息
+credit_line = -100       # 信用破产线：低于此值剥夺娱乐权
+bankrupt_line = -300     # 最后通牒线：低于此值可能被强制清算
+liquidation_rate = 0.2   # 每回合触发清算的概率
+liquidation_damage = 50  # 清算扣除的健康
+liquidation_health = 50  # 健康低于此值会被债务直接压垮

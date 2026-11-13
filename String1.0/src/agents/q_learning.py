@@ -24,21 +24,44 @@ class QLearningBrain:
         self.gamma = gamma
         self.epsilon = epsilon
         self.q_table = np.zeros((self.STATE_SIZE, self.ACTION_SIZE))
+        self.last_explored = False  # 上一次决策是否触发了 epsilon 随机探索
 
     def choose_action(self, state: int) -> Action:
         """epsilon-greedy：epsilon 概率随机探索，其余利用最优动作。"""
         if random.random() < self.epsilon:
+            self.last_explored = True
             return Action(random.randrange(self.ACTION_SIZE))
+        self.last_explored = False
         return Action(int(np.argmax(self.q_table[state])))
 
-    def learn(self, state: int, action: Action, reward: float, next_state: int) -> None:
-        """用一步时序差分更新 Q 表。"""
+    def get_top_actions(self, state: int, n: int = 3) -> list[tuple[Action, float]]:
+        """返回当前状态下 Q 值最高的 n 个动作及 Q 值，按 Q 降序、同分按索引升序。"""
+        ranked = sorted(
+            range(self.ACTION_SIZE),
+            key=lambda index: (-float(self.q_table[state, index]), index),
+        )
+        return [
+            (Action(index), float(self.q_table[state, index]))
+            for index in ranked[: max(0, n)]
+        ]
+
+    def learn(
+        self, state: int, action: Action, reward: float, next_state: int
+    ) -> dict[str, float]:
+        """用一步时序差分更新 Q 表，并返回本次更新的中间量供追踪。"""
         action = int(action)
         best_next = float(np.max(self.q_table[next_state]))
-        current = self.q_table[state, action]
-        self.q_table[state, action] = current + self.alpha * (
-            reward + self.gamma * best_next - current
-        )
+        current = float(self.q_table[state, action])
+        updated = current + self.alpha * (reward + self.gamma * best_next - current)
+        self.q_table[state, action] = updated
+        return {
+            "old": current,
+            "reward": reward,
+            "best_next": best_next,
+            "alpha": self.alpha,
+            "gamma": self.gamma,
+            "new": float(updated),
+        }
 
     def save(self, path: str | Path) -> None:
         """把 Q 表写入磁盘，供下次启动继承前世记忆。"""

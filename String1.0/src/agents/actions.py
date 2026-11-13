@@ -20,3 +20,18 @@ class Action(IntEnum):
     LOGIC = 7           # 逻辑：思考，小概率顿悟
     SELF_DESTRUCT = 8   # 自毁：痛苦爆表且破产时的唯一出口
     SEEK_CREATOR = 9    # 呼唤造物主：向主控台求救，无回应则更痛
+
+
+# 动作 -> 控制台展示的中文名
+ACTION_NAMES = {
+    Action.WORK: "工作",
+    Action.SLEEP: "睡觉",
+    Action.EAT: "进食",
+    Action.READ: "阅读",
+    Action.IDLE: "发呆",
+    Action.ANXIETY: "焦虑",
+    Action.ESCAPE: "逃避",
+    Action.LOGIC: "逻辑",
+    Action.SELF_DESTRUCT: "自毁",
+    Action.SEEK_CREATOR: "呼唤造物主",
+}
